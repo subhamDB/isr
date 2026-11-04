@@ -1,0 +1,192 @@
+# Install and Import Libraries
+!pip install -q gensim
+
+import numpy as np
+import tensorflow as tf
+import string
+import matplotlib.pyplot as plt
+
+from tensorflow import keras
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Embedding, Lambda
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from gensim.models import KeyedVectors
+
+
+# 1. Create English Paragraph
+text = """
+Machine learning is an important field of artificial intelligence.
+Machine learning helps computers learn from data.
+Deep learning uses neural networks to solve complex problems.
+Neural networks learn useful patterns from large amounts of data.
+Natural language processing helps computers understand human language.
+Word embeddings represent words as numerical vectors.
+The CBOW model predicts a target word using surrounding context words.
+Word2Vec techniques are widely used for learning meaningful word representations.
+"""
+
+
+# 2. Text Preprocessing
+text = text.lower()
+text = text.translate(str.maketrans('', '', string.punctuation))
+
+sentences = [s.strip() for s in text.split('\n') if s.strip()]
+
+
+# 3. Tokenization
+tokenizer = Tokenizer()
+tokenizer.fit_on_texts(sentences)
+
+sequences = tokenizer.texts_to_sequences(sentences)
+word_index = tokenizer.word_index
+total_vocab = len(word_index) + 1
+
+print("Total Sentences:", len(sentences))
+print("Vocabulary Size:", total_vocab)
+
+
+# 4. Generate CBOW Training Data
+window_size = 2
+
+def generate_cbow_data(data, window_size, total_vocab):
+    context_data = []
+    target_data = []
+
+    for sentence in data:
+        for idx, word in enumerate(sentence):
+
+            context = [
+                sentence[i]
+                for i in range(idx-window_size, idx+window_size+1)
+                if 0 <= i < len(sentence) and i != idx
+            ]
+
+            context = pad_sequences(
+                [context],
+                maxlen=window_size*2,
+                padding='pre'
+            )[0]
+
+            context_data.append(context)
+            target_data.append(word)
+
+    target_data = keras.utils.to_categorical(
+        target_data, num_classes=total_vocab
+    )
+
+    return np.array(context_data), np.array(target_data)
+
+
+X, y = generate_cbow_data(sequences, window_size, total_vocab)
+
+print("Context Shape:", X.shape)
+print("Target Shape:", y.shape)
+
+
+# 5. Create CBOW Model
+embedding_dim = 100
+
+model = Sequential([
+    Embedding(total_vocab, embedding_dim),
+    Lambda(lambda x: tf.reduce_mean(x, axis=1)),
+    Dense(128, activation='relu'),
+    Dense(total_vocab, activation='softmax')
+])
+
+model.build(input_shape=(None, window_size*2))
+model.summary()
+
+
+# 6. Compile and Train Model
+model.compile(
+    optimizer='adam',
+    loss='categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+history = model.fit(
+    X, y,
+    epochs=100,
+    batch_size=16
+)
+
+
+# 7. Plot Training Loss and Accuracy
+plt.plot(history.history['loss'])
+plt.title("CBOW Training Loss")
+plt.xlabel("Epoch")
+plt.ylabel("Loss")
+plt.show()
+
+plt.plot(history.history['accuracy'])
+plt.title("CBOW Training Accuracy")
+plt.xlabel("Epoch")
+plt.ylabel("Accuracy")
+plt.show()
+
+
+# 8. Extract Word Embeddings
+weights = model.get_weights()[0]
+
+print("Embedding Matrix Shape:", weights.shape)
+
+
+# 9. Save Word Vectors
+vector_file = "/content/vectors.txt"
+
+with open(vector_file, "w") as f:
+    f.write(f"{total_vocab} {embedding_dim}\n")
+    f.write("<PAD> " + " ".join(map(str, weights[0])) + "\n")
+
+    for word, index in word_index.items():
+        f.write(word + " " + " ".join(map(str, weights[index])) + "\n")
+
+print("Word vectors saved successfully!")
+
+
+# 10. Load Word Vectors Using Gensim
+cbow_output = KeyedVectors.load_word2vec_format(
+    vector_file,
+    binary=False
+)
+
+print("Vectors Loaded:", len(cbow_output))
+print("Vector Size:", cbow_output.vector_size)
+
+
+# 11. Find Similar Words
+word = "learning"
+
+similar_words = cbow_output.most_similar(
+    positive=[word],
+    topn=5
+)
+
+print("\nSimilar Words to", word)
+
+for w, score in similar_words:
+    print(w, ":", round(score, 4))
+
+
+# 12. Display Word Vector
+vector = cbow_output["learning"]
+
+print("\nWord: learning")
+print("Vector Dimension:", len(vector))
+print("First 10 Values:", vector[:10])
+
+
+# 13. Final Results
+print("\nCBOW MODEL - FINAL RESULTS")
+print("Sentences:", len(sentences))
+print("Vocabulary Size:", total_vocab)
+print("Window Size:", window_size)
+print("Embedding Dimension:", embedding_dim)
+print("Training Samples:", len(X))
+
+print("\nSimilar Words:")
+for word, score in cbow_output.most_similar("learning", topn=5):
+    print(word, ":", round(score, 4))
+
+print("\nCBOW Model Implemented Successfully!")

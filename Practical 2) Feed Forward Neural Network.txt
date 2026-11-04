@@ -1,0 +1,62 @@
+# 1. Import Libraries
+import tensorflow as tf
+import matplotlib.pyplot as plt
+import numpy as np
+import random
+
+# 2. Load Dataset
+(x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
+
+# 3. Normalize Data
+x_train = x_train / 255.0
+x_test = x_test / 255.0
+
+# 4. Create Model
+model = tf.keras.Sequential([
+    tf.keras.layers.Flatten(input_shape=(28, 28)),
+    tf.keras.layers.Dense(128, activation='relu'),
+    tf.keras.layers.Dense(10, activation='softmax')
+])
+
+# 5. Compile Model
+model.compile(
+    optimizer='sgd',
+    loss='sparse_categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+# 6. Train Model
+history = model.fit(x_train, y_train, epochs=10)
+
+# 7. Evaluate Model
+loss, accuracy = model.evaluate(x_test, y_test)
+
+print("Loss:", loss)
+print("Accuracy:", accuracy)
+
+# 8. Predict Random Digit
+n = random.randint(0, len(x_test) - 1)
+
+prediction = model.predict(x_test[n].reshape(1, 28, 28))
+
+predicted_digit = np.argmax(prediction)
+
+actual_digit = y_test[n]
+
+# 9. Display Image and Prediction
+plt.imshow(x_test[n], cmap='gray')
+plt.title("Predicted Digit: " + str(predicted_digit))
+plt.axis('off')
+plt.show()
+
+print("Predicted Digit:", predicted_digit)
+print("Actual Digit:", actual_digit)
+
+# 10. Plot Accuracy and Loss Graph
+plt.plot(history.history['accuracy'])
+plt.plot(history.history['loss'])
+plt.legend(['Accuracy', 'Loss'])
+plt.xlabel('Epoch')
+plt.ylabel('Value')
+plt.title('Model Accuracy and Loss')
+plt.show()
